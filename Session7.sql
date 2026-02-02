@@ -153,3 +153,70 @@ LEFT JOIN sakila.staff s ON 1 = 0
 UNION
 SELECT s.email FROM sakila.staff s
 LEFT JOIN sakila.customer c ON 1 = 0;
+
+--7) CROSS JOIN
+/* ------------------------------------------------------------
+   CROSS JOIN:
+   - produces a CARTESIAN PRODUCT
+   - every row in table A pairs with every row in table B
+
+   If customer has 599 rows and staff has 2 rows,
+   CROSS JOIN will return 599 * 2 = 1198 rows.
+
+   Used in:
+   - generating combinations
+   - building calendars
+   - testing / demo
+   ------------------------------------------------------------ */
+
+SELECT c.customer_id, s.staff_id
+FROM sakila.customer c
+CROSS JOIN sakila.staff s;
+
+--8) Normalization
+/* ------------------------------------------------------------
+   NORMALIZATION:
+   A database design process that reduces redundancy (duplication)
+   and improves data integrity.
+
+   Key idea:
+   "Store each fact once."
+
+   Example of BAD (not normalized):
+   orders(order_id, customer_name, customer_email, product_name, product_price)
+
+   Problems:
+   - customer info repeats in every order
+   - if customer email changes, must update many rows (inconsistency risk)
+
+   NORMALIZED structure:
+   customer(customer_id, name, email)
+   orders(order_id, customer_id, order_date)
+   order_items(order_id, product_id, qty)
+   product(product_id, name, price)
+
+   Benefits:
+   - less duplication
+   - fewer update anomalies
+   - more reliable data
+   ------------------------------------------------------------ */
+
+
+/* ------------------------------------------------------------
+   NORMALIZATION vs DENORMALIZATION:
+
+   Normalization:
+   fewer duplicates
+   better integrity and consistency
+   more joins required (slower reads sometimes)
+
+   Denormalization:
+   faster reads (analytics/reporting)
+   fewer joins needed
+   more duplicates and storage
+   harder updates (risk of inconsistency)
+
+   In Data Engineering:
+   - Data Warehouses often use denormalized designs (Star Schema)
+   - OLTP systems (transactions) prefer normalized designs
+   ------------------------------------------------------------ */
