@@ -113,7 +113,7 @@ def render_pdf_inline(file_bytes: bytes, height: int = 700, default_page: int = 
         st.warning("No PDF bytes available for preview.")
         return
 
-    # Best option: Streamlit native PDF viewer (works when streamlit[pdf] is installed)
+    # Streamlit native PDF viewer
     if hasattr(st, "pdf"):
         try:
             st.pdf(file_bytes)

@@ -204,7 +204,7 @@ st.set_page_config(page_title="Document Intelligence Hub", layout="wide")
 init_db()
 init_session_state()
 
-st.title("📄 Document Intelligence Hub - Phase 1")
+st.title("Document Intelligence Hub")
 st.caption("Ingest PDFs, search text, analyze your document collection, and browse your PDF library.")
 
 # Tabs
@@ -419,7 +419,7 @@ with tab_search:
                             st.success("Document sent to Library tab. Open the Library tab to view it.")
 
                     with btn_cols[2]:
-                        st.caption(f"📍 Page {r['page_number']}")
+                        st.caption(f" Page {r['page_number']}")
 
                     st.markdown("---")
 
@@ -678,7 +678,7 @@ with tab_library:
                         st.warning("PDF preview unavailable because stored file could not be read.")
 
                 # =========================================
-                # Targeted Page Text Preview (full page + highlights)
+                # Targeted Page Text Preview 
                 # =========================================
                 st.markdown("---")
                 st.subheader("Page Text Preview")

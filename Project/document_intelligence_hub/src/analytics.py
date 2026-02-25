@@ -9,7 +9,7 @@ import pandas as pd
 from src.db import get_connection
 
 
-# Simple stopword set (Phase 1 baseline)
+#  stopword set 
 STOPWORDS = {
     "the", "a", "an", "and", "or", "but", "if", "then", "than", "so", "because",
     "of", "in", "on", "at", "to", "for", "from", "with", "by", "as", "is", "are",

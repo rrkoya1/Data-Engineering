@@ -1,4 +1,3 @@
-# src/logging_config.py
 
 import logging
 from pathlib import Path
