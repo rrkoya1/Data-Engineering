@@ -1,0 +1,71 @@
+# =========================
+# Document Intelligence Hub
+# =========================
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python cache / compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build / packaging artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter 
+.ipynb_checkpoints/
+
+# Streamlit local config/cache
+.streamlit/
+
+
+# Logs
+logs/
+*.log
+
+# Local app data (generated runtime artifacts)
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# Stored ingested PDFs (local corpus cache)
+# Keep these ignored unless you intentionally want sample PDFs in repo
+stored_pdfs/
+
+# Temporary / exports
+tmp/
+temp/
+exports/
+*.tmp
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+
+
+*.png
+*.jpg
+*.jpeg
