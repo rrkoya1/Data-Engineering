@@ -1,3 +1,23 @@
+"""
+ui_components.py — Reusable PDF Rendering Components
+------------------------------------------------------
+Handles all PDF preview and rendering logic for the Streamlit UI.
+Uses a three-level fallback strategy to ensure the preview never
+completely fails regardless of browser or Streamlit version.
+
+Rendering strategy (in order of preference):
+1. Native Streamlit PDF viewer — st.pdf() (Streamlit >= 1.38)
+2. Iframe embed via base64 data URI — browser-dependent
+3. Image-based page rendering — PyMuPDF renders each page to PNG
+   (always works, used as the guaranteed fallback)
+
+Functions:
+- get_pdf_page_count_from_bytes(file_bytes) — returns page count for PDF bytes
+- load_pdf_bytes_from_doc(doc_row)          — reads PDF from stored file path
+- render_pdf_inline(file_bytes, ...)        — attempts all three render methods
+- render_pdf_page_image_fallback(...)       — standalone image-based renderer
+"""
+
 import base64
 from pathlib import Path
 from typing import Optional

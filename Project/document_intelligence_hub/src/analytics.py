@@ -1,3 +1,22 @@
+"""
+analytics.py — Analytics and Corpus Aggregation
+--------------------------------------------------
+Aggregates statistics across the ingested document corpus for dashboard display.
+
+Responsibilities:
+- get_top_documents_df()     — top N documents by page count and file size
+- get_page_distribution_df() — document counts bucketed by page range
+                               (1-5, 6-10, 11-20, 21-50, 51+)
+- get_ingestion_status_df()  — count of documents by status (success/failed)
+- get_top_terms_df()         — most frequent terms across all page text,
+                               with stopword filtering (common words excluded)
+- get_analytics_bundle()     — convenience wrapper that calls all four
+                               functions and returns them as a single dict
+
+All functions return Pandas DataFrames ready for direct display or charting.
+All DB queries are read-only aggregations — no writes occur here.
+"""
+
 from __future__ import annotations
 
 import re

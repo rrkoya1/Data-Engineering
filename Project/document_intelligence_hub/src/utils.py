@@ -1,3 +1,22 @@
+"""
+utils.py — Pure Utility Functions (Data Layer)
+------------------------------------------------
+Stateless helper functions for data processing. This module has no
+dependencies on Streamlit, the database, or any other project module.
+Safe to import and test in complete isolation.
+
+Functions:
+- compute_file_hash(file_bytes)          — SHA-256 hash for duplicate detection
+- normalize_text(text)                   — strips null chars, collapses whitespace
+- count_words(text)                      — word count from normalized text
+- create_snippet(text, query, window=70) — extracts a context window around
+                                           the first keyword match in text
+- highlight_query_in_snippet(snippet, query) — wraps matched term in **bold**
+                                               for Streamlit markdown rendering
+- format_bytes(num_bytes)                — converts bytes to human-readable string
+                                           (B, KB, MB, GB)
+"""
+
 import hashlib
 import re
 from typing import Optional
@@ -34,52 +53,54 @@ def count_words(text: Optional[str]) -> int:
     return len(re.findall(r"\b\w+\b", text))
 
 
-def create_snippet(text: str, query: str, window: int = 70) -> str:
+def build_snippet(text: str, query: str, max_len: int = 220) -> str:
     """
-    Create a short snippet around the first match of query in text.
-
-    Example:
-        text: "... this system uses vector database for semantic search ..."
-        query: "vector"
-        -> "... uses vector database for semantic ..."
+    Build a readable snippet around the first match (case-insensitive).
     """
+    text = (text or "").strip()
     if not text:
         return ""
 
-    if not query:
-        return text[: (window * 2)] + ("..." if len(text) > window * 2 else "")
+    q = (query or "").strip()
+    if not q:
+        return (text[:max_len] + "...") if len(text) > max_len else text
 
-    lower_text = text.lower()
-    lower_query = query.lower()
+    text_lower = text.lower()
+    q_lower = q.lower()
 
-    idx = lower_text.find(lower_query)
+    idx = text_lower.find(q_lower)
     if idx == -1:
-        # no match found, return beginning snippet
-        return text[: (window * 2)] + ("..." if len(text) > window * 2 else "")
+        return (text[:max_len] + "...") if len(text) > max_len else text
 
-    start = max(0, idx - window)
-    end = min(len(text), idx + len(query) + window)
-
-    snippet = text[start:end]
+    start = max(0, idx - 80)
+    end = min(len(text), idx + len(q) + 120)
+    snippet = text[start:end].strip()
 
     if start > 0:
         snippet = "..." + snippet
     if end < len(text):
-        snippet = snippet + "..."
+        snippet += "..."
 
     return snippet
 
 
-def highlight_query_in_snippet(snippet: str, query: str) -> str:
+def highlight_query_text(text: str, query: str) -> str:
     """
-    Return snippet with simple markdown-style bold highlighting for the query.
-    (Case-insensitive)
+    Case-insensitive markdown-style highlighting for a query.
+    Safe for Streamlit markdown usage.
     """
-    if not snippet or not query:
-        return snippet
+    if not text:
+        return ""
 
-    pattern = re.compile(re.escape(query), re.IGNORECASE)
-    return pattern.sub(lambda m: f"**{m.group(0)}**", snippet)
+    q = (query or "").strip()
+    if not q:
+        return text
+
+    try:
+        pattern = re.compile(re.escape(q), re.IGNORECASE)
+        return pattern.sub(lambda m: f"**{m.group(0)}**", text)
+    except Exception:
+        return text
 
 
 def format_bytes(num_bytes: int) -> str:

@@ -1,7 +1,28 @@
+"""
+search.py — Keyword Search Engine
+------------------------------------
+Handles all keyword search operations against the SQLite FTS5 index.
+
+Responsibilities:
+- Normalizes the user's query before passing it to FTS5
+- Executes BM25-ranked full-text search using the pages_fts virtual table
+  (lower BM25 score = higher relevance; results ordered ASC)
+- Joins results back to pages and documents tables for full metadata
+- Falls back silently to a LIKE query if FTS5 raises an OperationalError
+  (e.g., malformed query token) — app never crashes on a bad search
+- Formats raw SQLite rows into structured, UI-friendly result dicts
+  with display-safe fields (display_title, display_author, snippet,
+  highlighted snippet, score, and which backend was used)
+
+Primary function: search_pages_keyword(query, limit=20)
+Search backends: 'fts5' (primary) | 'like_fallback' (graceful degradation)
+"""
+
 from typing import List, Dict, Any
 import sqlite3
 
 from src.db import get_connection
+from src.utils import build_snippet, highlight_query_text
 
 
 def _normalize_query_for_fts(query: str) -> str:
@@ -14,74 +35,13 @@ def _normalize_query_for_fts(query: str) -> str:
     return q
 
 
-def _build_snippet(text: str, query: str, max_len: int = 220) -> str:
-    """
-    Build a readable snippet around the first match (case-insensitive).
-    """
-    text = (text or "").strip()
-    if not text:
-        return ""
-
-    q = (query or "").strip()
-    if not q:
-        return (text[:max_len] + "...") if len(text) > max_len else text
-
-    text_lower = text.lower()
-    q_lower = q.lower()
-
-    idx = text_lower.find(q_lower)
-    if idx == -1:
-        return (text[:max_len] + "...") if len(text) > max_len else text
-
-    start = max(0, idx - 80)
-    end = min(len(text), idx + len(q) + 120)
-    snippet = text[start:end].strip()
-
-    if start > 0:
-        snippet = "..." + snippet
-    if end < len(text):
-        snippet += "..."
-    return snippet
-
-
-def _highlight_snippet(snippet: str, query: str) -> str:
-    """
-    Light-weight highlighting for Streamlit markdown.
-    Note: This is intentionally simple and may not highlight all case variants.
-    """
-    if not snippet:
-        return ""
-    q = (query or "").strip()
-    if not q:
-        return snippet
-
-    # Try direct replacement first
-    highlighted = snippet.replace(q, f"**{q}**")
-
-    # If nothing changed, try case-insensitive first occurrence replacement
-    if highlighted == snippet:
-        s_lower = snippet.lower()
-        q_lower = q.lower()
-        idx = s_lower.find(q_lower)
-        if idx != -1:
-            highlighted = (
-                snippet[:idx]
-                + "**"
-                + snippet[idx: idx + len(q)]
-                + "**"
-                + snippet[idx + len(q):]
-            )
-
-    return highlighted
-
-
 def _format_search_row(row: sqlite3.Row, query: str, backend: str) -> Dict[str, Any]:
     """
     Convert raw DB row into structured UI-friendly search result.
     """
     text_content = row["text_content"] or ""
-    snippet_plain = _build_snippet(text_content, query=query)
-    snippet_highlighted = _highlight_snippet(snippet_plain, query=query)
+    snippet_plain = build_snippet(text_content, query=query)
+    snippet_highlighted = highlight_query_text(snippet_plain, query=query)
 
     title = row["title"]
     file_name = row["file_name"]
@@ -92,19 +52,16 @@ def _format_search_row(row: sqlite3.Row, query: str, backend: str) -> Dict[str, 
         "doc_id": row["doc_id"],
         "page_id": row["page_id"],
         "page_number": row["page_number"],
-
         # Raw metadata
         "file_name": file_name,
         "title": title,
         "author": author,
         "page_count": row["page_count"],
         "word_count": row["word_count"],
-
         # UI-friendly normalized fields
         "display_title": title or file_name or "(Untitled Document)",
         "display_file_name": file_name or "(Unknown file)",
         "display_author": author or "(Unknown)",
-
         # Search payload
         "query": query,
         "snippet": snippet_plain,

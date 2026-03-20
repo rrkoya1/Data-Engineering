@@ -1,3 +1,27 @@
+"""
+db.py — Database Layer (SQLite)
+---------------------------------
+Single source of truth for all database operations. No other module
+writes SQL directly — everything goes through functions defined here.
+
+Responsibilities:
+- Defines and creates the SQLite schema (init_db):
+    documents table: one row per PDF (metadata, hash, status, file path)
+    pages table:     one row per page (docid FK, page number, text, word count)
+- Creates the FTS5 virtual table (pages_fts) for full-text search (init_fts5)
+- Installs three SQLite triggers to keep pages_fts in sync automatically:
+    trg_pages_ai — after INSERT on pages
+    trg_pages_ad — after DELETE on pages
+    trg_pages_au — after UPDATE on pages
+- Provides safe schema migration via ensure_column_exists()
+- Exposes clean CRUD functions: insert_document, insert_pages,
+  delete_document_by_id (cascade deletes pages via FK), get_* queries
+- ON DELETE CASCADE ensures deleting a document removes all its pages
+  and the FTS index entries are cleaned up by the delete trigger
+
+Primary init call: init_db() — called once at application startup
+"""
+
 import sqlite3
 from pathlib import Path
 from typing import Optional, Iterable, Dict, Any, List, Tuple

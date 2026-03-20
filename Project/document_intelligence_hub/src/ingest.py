@@ -1,3 +1,22 @@
+"""
+ingest.py — PDF Ingestion Pipeline
+------------------------------------
+Handles the full ingestion workflow for uploaded PDF files.
+
+Responsibilities:
+- Reads raw PDF bytes from Streamlit uploaded file objects
+- Computes SHA-256 file hash for duplicate detection (via utils.py)
+- Skips re-ingestion if the same file hash already exists in the database
+- Saves PDF bytes to local disk under data/stored_pdfs/{hash}.pdf
+  (content-addressed: same content is never written twice)
+- Extracts document metadata (title, author, page count) using PyMuPDF
+- Extracts and normalizes page-level text for every page
+- Inserts document metadata and all page records into SQLite (via db.py)
+- Returns a structured summary dict: total selected, success, skipped, failed
+
+Primary function: ingest_uploaded_pdfs(uploaded_files, skip_duplicates=True)
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
