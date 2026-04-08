@@ -1,18 +1,92 @@
+"""
+library_page.py — Document Library Page
+-----------------------------------------
+Renders the Library tab of the Document Intelligence Hub.
+
+Responsibilities:
+- Displays all ingested documents in a filterable table
+- Highlights rows with missing titles in yellow for quick identification
+- Shows full document details for a selected document
+- Allows inline title and author editing via update_document_metadata()
+- Supports document deletion with optional local file removal
+- Provides PDF download, inline PDF viewer, and page text preview
+- Supports search-result jump targets with text highlighting
+"""
+
+from __future__ import annotations
+
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 from src.db import (
-    get_all_documents_for_library,
-    get_document_by_id,
     count_documents_by_stored_path,
     delete_document_by_id,
+    get_all_documents_for_library,
+    get_document_by_id,
     get_document_pages_by_numbers,
+    update_document_metadata,
 )
-from src.ui_components import render_pdf_inline, load_pdf_bytes_from_doc
+from src.ui_components import load_pdf_bytes_from_doc, render_pdf_inline
 from src.ui_helpers import build_preview_page_list
 from src.utils import format_bytes, highlight_query_text
+
+_MISSING_TITLE_LABELS = {"", "(no metadata title)", "(no title)", "none"}
+
+
+def _is_missing_title(title: str) -> bool:
+    return (title or "").strip().lower() in _MISSING_TITLE_LABELS
+
+
+def _render_edit_metadata(doc: dict) -> None:
+    """
+    Inline expander for editing document title and author.
+    Calls update_document_metadata() in db.py — no raw SQL in the page.
+    """
+    doc_id = int(doc["doc_id"])
+    current_title = doc.get("title") or ""
+    current_author = doc.get("author") or ""
+
+    with st.expander("✏️ Edit Title / Author", expanded=_is_missing_title(current_title)):
+        st.caption(
+            "Correct the title or author here. "
+            "Changes are saved immediately to the database."
+        )
+
+        new_title = st.text_input(
+            "Document title",
+            value=current_title,
+            key=f"edit_title_{doc_id}",
+            placeholder="Enter the correct document title",
+        )
+
+        new_author = st.text_input(
+            "Author",
+            value=current_author,
+            key=f"edit_author_{doc_id}",
+            placeholder="Enter the author name (optional)",
+        )
+
+        if st.button("Save Changes", key=f"save_metadata_{doc_id}", type="primary"):
+            title_changed = new_title.strip() != current_title.strip()
+            author_changed = new_author.strip() != current_author.strip()
+
+            if not title_changed and not author_changed:
+                st.info("No changes detected.")
+                return
+
+            success = update_document_metadata(
+                doc_id=doc_id,
+                title=new_title if title_changed else None,
+                author=new_author if author_changed else None,
+            )
+
+            if success:
+                st.success("Metadata updated successfully.")
+                st.rerun()
+            else:
+                st.error("Update failed — document not found in database.")
 
 
 def render_library_page() -> None:
@@ -27,7 +101,7 @@ def render_library_page() -> None:
     library_df = pd.DataFrame([dict(r) for r in library_rows])
 
     display_df = library_df.copy()
-    display_df["title"] = display_df["title"].fillna("").replace("", "(No metadata title)")
+    display_df["title"] = display_df["title"].fillna("").replace("", "(No title)")
     display_df["author"] = display_df["author"].fillna("").replace("", "(Unknown)")
     display_df["stored_file_path"] = display_df["stored_file_path"].fillna("")
     display_df = display_df.rename(
@@ -43,8 +117,14 @@ def render_library_page() -> None:
         }
     )
 
-    st.caption("Browse all ingested PDFs. Select a document to preview/download.")
+    st.caption(
+        "Browse all ingested PDFs. Rows highlighted in yellow have missing titles — "
+        "select them and use ✏️ Edit Title / Author to fix."
+    )
 
+    # ------------------------------------------------------------------
+    # Filter bar
+    # ------------------------------------------------------------------
     filter_text = st.text_input(
         "Filter library by file name or title",
         placeholder="e.g., AI, policy, report",
@@ -59,17 +139,26 @@ def render_library_page() -> None:
     else:
         filtered_df = display_df.copy()
 
+    # Highlight rows with missing titles in yellow
+    def _highlight_missing(row):
+        if _is_missing_title(row["Title"]):
+            return ["background-color: #fff3cd; color: #856404"] * len(row)
+        return [""] * len(row)
+
     st.dataframe(
         filtered_df[
             ["Doc ID", "File Name", "Title", "Author", "Pages", "File Size (Bytes)", "Ingested At"]
-        ],
-        width="stretch",
+        ].style.apply(_highlight_missing, axis=1),
+        use_container_width=True,
     )
 
     if filtered_df.empty:
         st.warning("No documents match the current filter.")
         return
 
+    # ------------------------------------------------------------------
+    # Document selector
+    # ------------------------------------------------------------------
     preferred_doc_id = st.session_state.get("library_selected_doc_id")
     available_doc_ids = filtered_df["Doc ID"].tolist()
 
@@ -83,7 +172,7 @@ def render_library_page() -> None:
         options=available_doc_ids,
         index=default_index,
         format_func=lambda x: (
-            f"Doc {x} - {filtered_df.loc[filtered_df['Doc ID'] == x, 'File Name'].iloc[0]}"
+            f"Doc {x} — {filtered_df.loc[filtered_df['Doc ID'] == x, 'File Name'].iloc[0]}"
         ),
     )
 
@@ -99,6 +188,9 @@ def render_library_page() -> None:
         st.error("Selected document could not be loaded.")
         return
 
+    # ------------------------------------------------------------------
+    # Document details
+    # ------------------------------------------------------------------
     st.markdown("---")
     st.subheader("Document Details")
 
@@ -107,8 +199,8 @@ def render_library_page() -> None:
 
     if jump_page:
         st.info(f"Jump target from Search: Page {jump_page}")
-        if search_query_for_highlight:
-            st.caption(f"Highlighting search term: {search_query_for_highlight}")
+    if search_query_for_highlight:
+        st.caption(f"Highlighting search term: {search_query_for_highlight}")
 
     d1, d2, d3, d4 = st.columns(4)
     d1.metric("Doc ID", doc["doc_id"])
@@ -117,11 +209,21 @@ def render_library_page() -> None:
     d4.metric("Status", doc["status"])
 
     st.write(f"**File Name:** {doc['file_name']}")
-    st.write(f"**Title:** {doc['title'] or '(No metadata title)'}")
+    st.write(
+        f"**Title:** {doc['title'] or '⚠️ No title — use Edit Title / Author below to fix'}"
+    )
     st.write(f"**Author:** {doc['author'] or '(Unknown)'}")
     st.write(f"**Ingested At:** {doc['ingested_at']}")
     st.write(f"**Stored Path:** {doc['stored_file_path'] or '(Not stored)'}")
 
+    # ------------------------------------------------------------------
+    # Edit title / author
+    # ------------------------------------------------------------------
+    _render_edit_metadata(dict(doc))
+
+    # ------------------------------------------------------------------
+    # Manage document — delete
+    # ------------------------------------------------------------------
     st.markdown("---")
     st.subheader("Manage Document")
 
@@ -136,7 +238,9 @@ def render_library_page() -> None:
         key=f"remove_file_disk_{doc['doc_id']}",
     )
 
-    if st.button("Delete This Document", type="secondary", key=f"delete_doc_{doc['doc_id']}"):
+    if st.button(
+        "Delete This Document", type="secondary", key=f"delete_doc_{doc['doc_id']}"
+    ):
         if not delete_confirm:
             st.warning("Please confirm deletion by checking the confirmation box.")
         else:
@@ -149,7 +253,6 @@ def render_library_page() -> None:
                 if remove_file_from_disk and stored_path_to_delete:
                     try:
                         ref_count = count_documents_by_stored_path(stored_path_to_delete)
-
                         if ref_count == 0:
                             path_obj = Path(stored_path_to_delete)
                             if path_obj.exists():
@@ -159,10 +262,11 @@ def render_library_page() -> None:
                                 file_deleted_msg = "Stored PDF file was already missing on disk."
                         else:
                             file_deleted_msg = (
-                                "Stored PDF file was kept because another document record still references it."
+                                "Stored PDF file was kept because another document "
+                                "record still references it."
                             )
-                    except Exception as e:
-                        file_deleted_msg = f"Document deleted, but file cleanup failed: {e}"
+                    except Exception as exc:
+                        file_deleted_msg = f"Document deleted, but file cleanup failed: {exc}"
 
                 if st.session_state.get("library_selected_doc_id") == int(doc["doc_id"]):
                     st.session_state["library_selected_doc_id"] = None
@@ -173,11 +277,13 @@ def render_library_page() -> None:
                 st.success("Document deleted from library and database index.")
                 if file_deleted_msg:
                     st.info(file_deleted_msg)
-
                 st.rerun()
             else:
                 st.error("Delete failed: document not found or already removed.")
 
+    # ------------------------------------------------------------------
+    # PDF actions — download / view / hide
+    # ------------------------------------------------------------------
     pdf_bytes = load_pdf_bytes_from_doc(doc)
 
     action_col1, action_col2, action_col3 = st.columns([1, 1, 1])
@@ -217,6 +323,9 @@ def render_library_page() -> None:
         else:
             st.warning("PDF preview unavailable because stored file could not be read.")
 
+    # ------------------------------------------------------------------
+    # Page text preview
+    # ------------------------------------------------------------------
     st.markdown("---")
     st.subheader("Page Text Preview")
 
@@ -280,14 +389,16 @@ def render_library_page() -> None:
                     expanded=bool(is_selected_page or is_jump_page),
                 ):
                     if full_text.strip():
-                        highlighted_text = highlight_query_text(full_text, search_query_for_highlight)
+                        highlighted_text = highlight_query_text(
+                            full_text, search_query_for_highlight
+                        )
                         st.markdown(highlighted_text)
                     else:
                         st.caption("(No text extracted on this page)")
         else:
             st.info("No extracted text available for the selected page(s).")
 
-    if jump_page:
-        if st.button("Clear Jump Target", key=f"clear_jump_{doc['doc_id']}"):
-            st.session_state["library_jump_page"] = None
-            st.rerun()
+        if jump_page:
+            if st.button("Clear Jump Target", key=f"clear_jump_{doc['doc_id']}"):
+                st.session_state["library_jump_page"] = None
+                st.rerun()

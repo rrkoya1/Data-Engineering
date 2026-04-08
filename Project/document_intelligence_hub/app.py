@@ -1,20 +1,23 @@
 """
-app.py — Application Entry Point and Router
---------------------------------------------
-Lightweight entry point for the Document Intelligence Hub Streamlit application.
+app.py — Streamlit Application Entry Point
+------------------------------------------
+Initializes the application and renders the tab-based UI for the
+Document Intelligence Hub.
 
 Responsibilities:
-- Initializes logging (logging_config.py)
-- Sets up the SQLite database schema and FTS5 index (db.py)
-- Initializes Streamlit session state (state.py)
-- Routes the user to the correct page module based on sidebar navigation:
-    Ingestion → src/pages/ingestion_page.py
-    Search    → src/pages/search_page.py
-    Library   → src/pages/library_page.py
-    Analytics → src/pages/analytics_page.py
+- Sets Streamlit page configuration
+- Initializes logging
+- Initializes the SQLite database and FTS5 support
+- Initializes Streamlit session state
+- Renders the main page tabs and routes each tab to its page module
 
-No business logic lives here. All feature logic is handled by the backend
-modules in src/ and rendered by the page modules in src/pages/.
+UI routing model:
+- Ingestion
+- Search
+- Library
+- Analytics
+- ML Analysis
+- Semantic Retrieval
 """
 
 import streamlit as st
@@ -27,6 +30,8 @@ from src.pages.ingestion_page import render_ingestion_page
 from src.pages.search_page import render_search_page
 from src.pages.library_page import render_library_page
 from src.pages.analytics_page import render_analytics_page
+from src.pages.ml_page import render_ml_page
+from src.pages.chat_page import render_chat_page
 
 
 def main() -> None:
@@ -41,12 +46,13 @@ def main() -> None:
     # Header
     st.title("Document Intelligence Hub")
     st.caption(
-        "Ingest PDFs, search text, analyze your document collection, and browse your PDF library."
+        "Ingest PDFs, search text, analyze your document collection, browse your PDF library, "
+        "explore ML/NLP insights, and test semantic retrieval."
     )
 
-    # Tabs (router only)
-    tab_ingest, tab_search, tab_library, tab_analytics = st.tabs(
-        ["Ingestion", "Search", "Library", "Analytics"]
+    # Tab-based routing
+    tab_ingest, tab_search, tab_library, tab_analytics, tab_ml, tab_semantic = st.tabs(
+        ["Ingestion", "Search", "Library", "Analytics", "ML Analysis", "Semantic Retrieval"]
     )
 
     with tab_ingest:
@@ -60,6 +66,12 @@ def main() -> None:
 
     with tab_analytics:
         render_analytics_page()
+
+    with tab_ml:
+        render_ml_page()
+
+    with tab_semantic:
+        render_chat_page()
 
 
 if __name__ == "__main__":
